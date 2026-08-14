@@ -1,0 +1,77 @@
+name: Build Android APK
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  android:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out Android project
+        uses: actions/checkout@v4
+
+      - name: Read pinned source revision
+        id: source
+        shell: bash
+        run: |
+          echo "repository=$(jq -r .repository source-pin.json)" >> "$GITHUB_OUTPUT"
+          echo "commit=$(jq -r .commit source-pin.json)" >> "$GITHUB_OUTPUT"
+
+      - name: Check out pinned Virtual Bartender source
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ steps.source.outputs.repository }}
+          ref: ${{ steps.source.outputs.commit }}
+          path: build-source
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Build React frontend
+        shell: bash
+        run: |
+          cd build-source/frontend
+          if [ -f package-lock.json ]; then npm ci; else npm install; fi
+          npm run build
+          cd ../..
+          mkdir -p www
+          cp -R build-source/frontend/dist/. www/
+
+      - name: Install Capacitor dependencies
+        run: npm install
+
+      - name: Generate Android project
+        run: npx cap add android
+
+      - name: Sync web application
+        run: npx cap sync android
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Build debug APK
+        working-directory: android
+        run: ./gradlew assembleDebug
+
+      - name: Rename APK
+        run: cp android/app/build/outputs/apk/debug/app-debug.apk VirtualBartender-Android-SmokeTest.apk
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: VirtualBartender-Android-SmokeTest
+          path: VirtualBartender-Android-SmokeTest.apk
+          if-no-files-found: error
