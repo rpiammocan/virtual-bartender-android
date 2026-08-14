@@ -29,12 +29,21 @@ jobs:
           ref: ${{ steps.source.outputs.commit }}
           path: build-source
 
+      - name: Generate offline Android catalog
+        run: python tools/export_android_seed.py
+
+      - name: Install Android local API
+        shell: bash
+        run: |
+          cp android-src/api.ts build-source/frontend/src/api.ts
+          cp build-source/frontend/src/androidSeed.ts android-src/androidSeed.generated.ts
+
       - name: Set up Node
         uses: actions/setup-node@v4
         with:
           node-version: '22'
 
-      - name: Build React frontend
+      - name: Build standalone React frontend
         shell: bash
         run: |
           cd build-source/frontend
@@ -67,11 +76,11 @@ jobs:
         run: ./gradlew assembleDebug
 
       - name: Rename APK
-        run: cp android/app/build/outputs/apk/debug/app-debug.apk VirtualBartender-Android-SmokeTest.apk
+        run: cp android/app/build/outputs/apk/debug/app-debug.apk VirtualBartender-Android-Offline.apk
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: VirtualBartender-Android-SmokeTest
-          path: VirtualBartender-Android-SmokeTest.apk
+          name: VirtualBartender-Android-Offline
+          path: VirtualBartender-Android-Offline.apk
           if-no-files-found: error
